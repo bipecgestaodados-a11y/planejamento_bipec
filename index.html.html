@@ -1,0 +1,549 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BIPEC - Planejamento Estratégico de Suplementação</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- React & ReactDOM -->
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <!-- Babel Standalone -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+      @media print {
+        body { background-color: white !important; color: #0b192c !important; }
+        .no-print { display: none !important; }
+        .print-container { width: 100% !important; padding: 0 !important; margin: 0 !important; }
+        table { page-break-inside: auto; }
+        tr { page-break-inside: avoid; page-break-after: auto; }
+        .print-footer { display: flex !important; position: fixed; bottom: 0; width: 100%; justify-content: space-between; font-size: 10px; border-top: 1px solid #ccc; padding-top: 4px; color: #0b192c; }
+      }
+      .print-footer { display: none; }
+    </style>
+</head>
+<body class="bg-[#0b192c] text-slate-100 font-sans">
+    <div id="root"></div>
+
+    <script type="text/babel">
+      const { useState, useMemo, useEffect } = React;
+
+      const GMD_DB = {
+        "SML": { "Jun": 0.05, "Jul": 0, "Ago": -0.025, "Set": -0.05, "Out": 0, "Nov": 0.25, "Dez": 0.45, "Jan": 0.55, "Fev": 0.45, "Mar": 0.35, "Abr": 0.25, "Mai": 0.15 },
+        "ADS": { "Jun": 0.12, "Jul": 0.07, "Ago": 0.045, "Set": 0.02, "Out": 0.07, "Nov": 0.32, "Dez": 0.52, "Jan": 0.62, "Fev": 0.52, "Mar": 0.42, "Abr": 0.32, "Mai": 0.22 },
+        "PTR": { "Jun": 0.3, "Jul": 0.25, "Ago": 0.225, "Set": 0.2, "Out": 0.25, "Nov": 0.5, "Dez": 0.7, "Jan": 0.8, "Fev": 0.7, "Mar": 0.6, "Abr": 0.5, "Mai": 0.4 },
+        "PE 3G": { "Jun": 0.4, "Jul": 0.35, "Ago": 0.325, "Set": 0.3, "Out": 0.35, "Nov": 0.6, "Dez": 0.8, "Jan": 0.9, "Fev": 0.8, "Mar": 0.7, "Abr": 0.6, "Mai": 0.5 },
+        "PE 5G": { "Jun": 0.5, "Jul": 0.45, "Ago": 0.425, "Set": 0.4, "Out": 0.45, "Nov": 0.7, "Dez": 0.9, "Jan": 1, "Fev": 0.9, "Mar": 0.8, "Abr": 0.7, "Mai": 0.6 },
+        "RCA 0,75%": { "Jun": 0.55, "Jul": 0.5, "Ago": 0.475, "Set": 0.45, "Out": 0.5, "Nov": 0.75, "Dez": 0.95, "Jan": 1.05, "Fev": 0.95, "Mar": 0.85, "Abr": 0.75, "Mai": 0.65 },
+        "RCA 1,0%": { "Jun": 0.6, "Jul": 0.55, "Ago": 0.525, "Set": 0.5, "Out": 0.55, "Nov": 0.8, "Dez": 1, "Jan": 1.1, "Fev": 1, "Mar": 0.9, "Abr": 0.8, "Mai": 0.7 },
+        "RCA 1,25%": { "Jun": 0.65, "Jul": 0.6, "Ago": 0.575, "Set": 0.55, "Out": 0.6, "Nov": 0.85, "Dez": 1.05, "Jan": 1.15, "Fev": 1.05, "Mar": 0.95, "Abr": 0.85, "Mai": 0.75 },
+        "RCA 1,5%": { "Jun": 0.7, "Jul": 0.65, "Ago": 0.625, "Set": 0.6, "Out": 0.65, "Nov": 0.9, "Dez": 1.1, "Jan": 1.2, "Fev": 1.1, "Mar": 1, "Abr": 0.9, "Mai": 0.8 },
+        "RCA 1,75%": { "Jun": 0.75, "Jul": 0.7, "Ago": 0.675, "Set": 0.65, "Out": 0.7, "Nov": 0.95, "Dez": 1.15, "Jan": 1.25, "Fev": 1.15, "Mar": 1.05, "Abr": 0.95, "Mai": 0.85 },
+        "RCA 2,0%": { "Jun": 0.8, "Jul": 0.75, "Ago": 0.725, "Set": 0.7, "Out": 0.75, "Nov": 1, "Dez": 1.2, "Jan": 1.3, "Fev": 1.2, "Mar": 1.1, "Abr": 1, "Mai": 0.9 }
+      };
+
+      const CONSUMO_DB = {
+        "SML": { "Jun": 26, "Jul": 30, "Ago": 35, "Set": 40, "Out": 20, "Nov": 20, "Dez": 20, "Jan": 23, "Fev": 23, "Mar": 23, "Abr": 26, "Mai": 26 },
+        "ADS": { "Jun": 46, "Jul": 55, "Ago": 60, "Set": 65, "Out": 30, "Nov": 40, "Dez": 40, "Jan": 43, "Fev": 43, "Mar": 43, "Abr": 46, "Mai": 46 },
+        "PTR": { "Jun": 125, "Jul": 125, "Ago": 125, "Set": 125, "Out": 125, "Nov": 125, "Dez": 125, "Jan": 125, "Fev": 125, "Mar": 125, "Abr": 125, "Mai": 125 },
+        "PE 3G": { "Jun": 300, "Jul": 300, "Ago": 300, "Set": 300, "Out": 300, "Nov": 300, "Dez": 300, "Jan": 300, "Fev": 300, "Mar": 300, "Abr": 300, "Mai": 300 },
+        "PE 5G": { "Jun": 500, "Jul": 500, "Ago": 500, "Set": 500, "Out": 500, "Nov": 500, "Dez": 500, "Jan": 500, "Fev": 500, "Mar": 500, "Abr": 500, "Mai": 500 },
+        "RCA 0,75%": { "Jun": 750, "Jul": 750, "Ago": 750, "Set": 750, "Out": 750, "Nov": 750, "Dez": 750, "Jan": 750, "Fev": 750, "Mar": 750, "Abr": 750, "Mai": 750 },
+        "RCA 1,0%": { "Jun": 1000, "Jul": 1000, "Ago": 1000, "Set": 1000, "Out": 1000, "Nov": 1000, "Dez": 1000, "Jan": 1000, "Fev": 1000, "Mar": 1000, "Abr": 1000, "Mai": 1000 },
+        "RCA 1,25%": { "Jun": 1250, "Jul": 1250, "Ago": 1250, "Set": 1250, "Out": 1250, "Nov": 1250, "Dez": 1250, "Jan": 1250, "Fev": 1250, "Mar": 1250, "Abr": 1250, "Mai": 1250 },
+        "RCA 1,5%": { "Jun": 1500, "Jul": 1500, "Ago": 1500, "Set": 1500, "Out": 1500, "Nov": 1500, "Dez": 1500, "Jan": 1500, "Fev": 1500, "Mar": 1500, "Abr": 1500, "Mai": 1500 },
+        "RCA 1,75%": { "Jun": 1750, "Jul": 1750, "Ago": 1750, "Set": 1750, "Out": 1750, "Nov": 1750, "Dez": 1750, "Jan": 1750, "Fev": 1750, "Mar": 1750, "Abr": 1750, "Mai": 1750 },
+        "RCA 2,0%": { "Jun": 2000, "Jul": 2000, "Ago": 2000, "Set": 2000, "Out": 2000, "Nov": 2000, "Dez": 2000, "Jan": 2000, "Fev": 2000, "Mar": 2000, "Abr": 2000, "Mai": 2000 }
+      };
+
+      const DEFAULT_DAYS = {
+        "Jun": 30, "Jul": 31, "Ago": 31, "Set": 30, "Out": 31, "Nov": 30,
+        "Dez": 31, "Jan": 31, "Fev": 28, "Mar": 31, "Abr": 30, "Mai": 31
+      };
+
+      const ALL_MONTHS = ["Ago", "Set", "Out", "Nov", "Dez", "Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul"];
+
+      function App() {
+        const [planName, setPlanName] = useState("Planejamento Estratégico de Recria e Engorda");
+        const [client, setClient] = useState("Guilherme Alves");
+        const [property, setProperty] = useState("Fazenda Barra dos Encantos");
+        const [city, setCity] = useState("Vassouras");
+        const [stateUF, setStateUF] = useState("RJ");
+        
+        const [dataInicio, setDataInicio] = useState("2026-11-01");
+        const [dataFim, setDataFim] = useState("2027-04-30");
+
+        const [pesoInicial, setPesoInicial] = useState(200);
+        const [ajusteGmdPct, setAjusteGmdPct] = useState(0); 
+        
+        const [precos, setPrecos] = useState({
+          "SML": 50, "ADS": 60, "PTR": 90,
+          "PE 3G": 80, "PE 5G": 80,
+          "RCA 0,75%": 70, "RCA 1,0%": 68, "RCA 1,25%": 70,
+          "RCA 1,5%": 70, "RCA 1,75%": 70, "RCA 2,0%": 70
+        });
+
+        const [precoCompraArroba, setPrecoCompraArroba] = useState(500);
+        const [rcInicialPct, setRcInicialPct] = useState(50);
+        const [rcFinalPct, setRcFinalPct] = useState(50);
+        
+        const [custoOperacionalDia, setCustoOperacionalDia] = useState(0.50);
+        const [arrendamentoMes, setArrendamentoMes] = useState(50);
+        const [sanidadeMes, setSanidadeMes] = useState(1.00);
+        const [precoVendaArroba, setPrecoVendaArroba] = useState(430);
+
+        const [planRows, setPlanRows] = useState([
+          { id: 1, mes: "Nov", diasCustom: null, produto: "PTR" },
+          { id: 2, mes: "Dez", diasCustom: null, produto: "PTR" },
+          { id: 3, mes: "Jan", diasCustom: null, produto: "PTR" },
+          { id: 4, mes: "Fev", diasCustom: null, produto: "PTR" },
+          { id: 5, mes: "Mar", diasCustom: null, produto: "PE 3G" },
+          { id: 6, mes: "Abr", diasCustom: null, produto: "PE 3G" }
+        ]);
+
+        const [savedPlans, setSavedPlans] = useState([]);
+
+        useEffect(() => {
+          const loaded = localStorage.getItem("bipec_saved_plans");
+          if (loaded) {
+            try { setSavedPlans(JSON.parse(loaded)); } catch(e){}
+          }
+        }, []);
+
+        const savePlanToLocalStorage = () => {
+          const newPlan = {
+            id: Date.now(),
+            name: `${client} - ${property} (${new Date().toLocaleDateString()})`,
+            client, property, city, stateUF, dataInicio, dataFim, pesoInicial, precoVendaArroba, planRows
+          };
+          const updated = [newPlan, ...savedPlans];
+          setSavedPlans(updated);
+          localStorage.setItem("bipec_saved_plans", JSON.stringify(updated));
+          alert("Planejamento salvo com sucesso no navegador!");
+        };
+
+        const loadPlan = (p) => {
+          setClient(p.client);
+          setProperty(p.property);
+          setCity(p.city);
+          setStateUF(p.stateUF);
+          setDataInicio(p.dataInicio);
+          setDataFim(p.dataFim);
+          setPesoInicial(p.pesoInicial);
+          setPrecoVendaArroba(p.precoVendaArroba);
+          setPlanRows(p.planRows);
+        };
+
+        const addRow = () => {
+          const newId = planRows.length > 0 ? Math.max(...planRows.map(r => r.id)) + 1 : 1;
+          setPlanRows([...planRows, { id: newId, mes: "Nov", diasCustom: null, produto: "PE 3G" }]);
+        };
+
+        const removeRow = (id) => {
+          if (planRows.length <= 1) return;
+          setPlanRows(planRows.filter(r => r.id !== id));
+        };
+
+        const updateRowField = (id, field, value) => {
+          setPlanRows(planRows.map(r => r.id === id ? { ...r, [field]: value } : r));
+        };
+
+        const calculos = useMemo(() => {
+          let currentWeight = pesoInicial;
+          let totalDespesaAlimentar = 0;
+          let totalDias = 0;
+
+          const dStart = new Date(dataInicio + "T00:00:00");
+          const dEnd = new Date(dataFim + "T00:00:00");
+          const ajusteGmdFactor = ajusteGmdPct / 100; 
+
+          const monthlyResults = planRows.map((row, index) => {
+            const m = row.mes;
+            let dias = DEFAULT_DAYS[m] || 30;
+
+            if (row.diasCustom !== null && row.diasCustom !== "") {
+              dias = Number(row.diasCustom);
+            } else {
+              if (index === 0 && !isNaN(dStart.getTime())) {
+                const startMonth = dStart.getMonth();
+                const mapMonthNum = { "Ago": 7, "Set": 8, "Out": 9, "Nov": 10, "Dez": 11, "Jan": 0, "Fev": 1, "Mar": 2, "Abr": 3, "Mai": 4, "Jun": 5, "Jul": 6 };
+                if (mapMonthNum[m] === startMonth) {
+                  const totalDaysInMonth = new Date(dStart.getFullYear(), startMonth + 1, 0).getDate();
+                  dias = totalDaysInMonth - dStart.getDate() + 1;
+                }
+              }
+              if (index === planRows.length - 1 && !isNaN(dEnd.getTime())) {
+                const endMonth = dEnd.getMonth();
+                const mapMonthNum = { "Ago": 7, "Set": 8, "Out": 9, "Nov": 10, "Dez": 11, "Jan": 0, "Fev": 1, "Mar": 2, "Abr": 3, "Mai": 4, "Jun": 5, "Jul": 6 };
+                if (mapMonthNum[m] === endMonth) {
+                  dias = dEnd.getDate();
+                }
+              }
+            }
+
+            const prod = row.produto || "PE 3G";
+            const baseGmd = GMD_DB[prod]?.[m] || 0.4;
+            const gmd = baseGmd * (1 + ajusteGmdFactor);
+            const ganhoMes = gmd * dias;
+            const pesoIniMes = currentWeight;
+            const pesoFimMes = pesoIniMes + ganhoMes;
+            
+            const consumoG100 = CONSUMO_DB[prod]?.[m] || 300;
+            const pesoMedioMes = (pesoIniMes + pesoFimMes) / 2;
+            const consumoDiaKg = (pesoMedioMes / 100) * (consumoG100 / 1000);
+            const consumoMesKg = consumoDiaKg * dias;
+
+            totalDias += dias;
+
+            const precoKg = (precos[prod] || 0) / 30;
+            const despesaDia = consumoDiaKg * precoKg;
+            const despesaMes = despesaDia * dias;
+            totalDespesaAlimentar += despesaMes;
+
+            currentWeight = pesoFimMes;
+
+            return {
+              id: row.id,
+              mes: m,
+              dias,
+              diasCustom: row.diasCustom,
+              produto: prod,
+              gmd: gmd * 1000,
+              ganhoTotal: ganhoMes,
+              pesoInicial: pesoIniMes,
+              pesoFinal: pesoFimMes,
+              consumoDia: consumoDiaKg,
+              consumoMes: consumoMesKg,
+              diaria: despesaDia,
+              despesaMensal: despesaMes,
+              custoArrobaAlimentar: ganhoMes > 0 ? (despesaMes / (ganhoMes / 15)) : 0
+            };
+          });
+
+          const pesoFinalTotal = currentWeight;
+          const ganhoTotalTotal = pesoFinalTotal - pesoInicial;
+
+          const rcIniFactor = rcInicialPct / 100;
+          const rcFinFactor = rcFinalPct / 100;
+
+          const precoCompraCab = (pesoInicial * rcIniFactor * precoCompraArroba) / 15;
+          const custoOperacionalCab = totalDias * custoOperacionalDia;
+          const mesesTotais = totalDias / 30.4167;
+          const custoArrendamentoCab = mesesTotais * arrendamentoMes;
+          const custoSanidadeCab = mesesTotais * sanidadeMes;
+
+          const despesaTotalCab = totalDespesaAlimentar + custoOperacionalCab + custoArrendamentoCab + custoSanidadeCab + precoCompraCab;
+          const pesoCarcacaFinal = pesoFinalTotal * rcFinFactor;
+          const arrobasFinais = pesoCarcacaFinal / 15;
+          const precoVendaCab = arrobasFinais * precoVendaArroba;
+
+          const lucroCab = precoVendaCab - despesaTotalCab;
+          const lucratividade = despesaTotalCab > 0 ? (lucroCab / despesaTotalCab) : 0;
+
+          const custoAlimentarArroba = ganhoTotalTotal > 0 ? (totalDespesaAlimentar / (ganhoTotalTotal / 15)) : 0;
+          const custoOperacionalArroba = ganhoTotalTotal > 0 ? (custoOperacionalCab / (ganhoTotalTotal / 15)) : 0;
+          const custoArrendamentoArroba = ganhoTotalTotal > 0 ? (custoArrendamentoCab / (ganhoTotalTotal / 15)) : 0;
+          const custoSanidadeArroba = ganhoTotalTotal > 0 ? (custoSanidadeCab / (ganhoTotalTotal / 15)) : 0;
+          const custoTotalArroba = custoAlimentarArroba + custoOperacionalArroba + custoArrendamentoArroba + custoSanidadeArroba;
+
+          const sensibilidade = [-30, -20, -10, 0, 10, 20, 30].map(delta => {
+            const pVendaSim = precoVendaArroba + delta;
+            const recSim = arrobasFinais * pVendaSim;
+            const lucSim = recSim - despesaTotalCab;
+            const lucPctSim = despesaTotalCab > 0 ? (lucSim / despesaTotalCab) : 0;
+            return { preco: pVendaSim, lucro: lucSim, lucratividade: lucPctSim * 100 };
+          });
+
+          return {
+            monthlyResults, totalDias, pesoFinalTotal, ganhoTotalTotal, totalDespesaAlimentar,
+            precoCompraCab, custoOperacionalCab, custoArrendamentoCab, custoSanidadeCab,
+            despesaTotalCab, precoVendaCab, lucroCab, lucratividade, arrobasFinais,
+            custoAlimentarArroba, custoOperacionalArroba, custoArrendamentoArroba, custoSanidadeArroba, custoTotalArroba,
+            sensibilidade
+          };
+        }, [planRows, pesoInicial, ajusteGmdPct, precos, precoCompraArroba, rcInicialPct, rcFinalPct, custoOperacionalDia, arrendamentoMes, sanidadeMes, precoVendaArroba, dataInicio, dataFim]);
+
+        const handlePrint = () => {
+          setTimeout(() => { window.print(); }, 300);
+        };
+
+        useEffect(() => {
+          if (window.lucide) { window.lucide.createIcons(); }
+        }, [planRows]);
+
+        return (
+          React.createElement("div", {className: "min-h-screen bg-[#0b192c] text-slate-100 flex flex-col"},
+            React.createElement("header", {className: "no-print bg-[#1e3e62] border-b border-slate-700 px-6 py-4 flex flex-col md:flex-row justify-between items-center shadow-lg gap-4"},
+              React.createElement("div", {className: "flex items-center space-x-3"},
+                React.createElement("div", {className: "bg-white p-1 rounded-xl shadow-md flex items-center justify-center w-12 h-12"},
+                  React.createElement("svg", {viewBox: "0 0 500 500", className: "w-10 h-10"},
+                    React.createElement("path", {fill: "#0b192c", d: "M125 70 C 150 120, 200 140, 250 140 C 300 140, 350 120, 375 70 C 400 90, 430 140, 410 190 C 390 240, 350 250, 330 290 C 310 330, 290 380, 250 430 C 210 380, 190 330, 170 290 C 150 250, 110 240, 90 190 C 70 140, 100 90, 125 70 Z"}),
+                    React.createElement("circle", {cx: "250", cy: "240", r: "70", fill: "#ff4c4c"}),
+                    React.createElement("path", {fill: "#fff", d: "M235 200 h30 v50 h-30 z"})
+                  )
+                ),
+                React.createElement("div", null,
+                  React.createElement("h1", {className: "text-xl font-black tracking-tight text-white flex items-center gap-2"},
+                    "BIPEC ", React.createElement("span", {className: "text-xs bg-[#ff4c4c] text-white px-2 py-0.5 rounded-full font-bold shadow"}, "Gestão de Dados")
+                  ),
+                  React.createElement("p", {className: "text-xs text-slate-300"}, "Planejamento Estratégico de Suplementação a Pasto")
+                )
+              ),
+              React.createElement("div", {className: "flex items-center gap-3"},
+                React.createElement("button", {onClick: savePlanToLocalStorage, className: "flex items-center gap-1.5 bg-slate-700 hover:bg-slate-600 text-white px-3 py-2 rounded-xl text-xs font-semibold shadow cursor-pointer"},
+                  "Salvar no Navegador"
+                ),
+                React.createElement("button", {onClick: handlePrint, className: "flex items-center gap-2 bg-[#ff4c4c] hover:bg-[#e03b3b] text-white px-4 py-2 rounded-xl font-bold text-xs shadow-lg shadow-red-500/30 cursor-pointer"},
+                  "Imprimir / Gerar PDF"
+                )
+              )
+            ),
+
+            React.createElement("div", {className: "flex-1 flex flex-col lg:flex-row print-container"},
+              React.createElement("aside", {className: "no-print w-full lg:w-80 bg-[#1e3e62]/90 border-r border-slate-700 p-5 flex flex-col gap-6 overflow-y-auto"},
+                React.createElement("div", {className: "space-y-4"},
+                  React.createElement("h2", {className: "text-sm font-bold uppercase tracking-wider text-slate-200 flex items-center gap-2"}, "Identificação & Parâmetros"),
+                  React.createElement("div", null,
+                    React.createElement("label", {className: "text-xs text-slate-300 block mb-1 font-medium"}, "Cliente:"),
+                    React.createElement("input", {type: "text", value: client, onChange: (e) => setClient(e.target.value), className: "w-full bg-[#0b192c] border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-slate-400"})
+                  ),
+                  React.createElement("div", null,
+                    React.createElement("label", {className: "text-xs text-slate-300 block mb-1 font-medium"}, "Propriedade:"),
+                    React.createElement("input", {type: "text", value: property, onChange: (e) => setProperty(e.target.value), className: "w-full bg-[#0b192c] border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-slate-400"})
+                  ),
+                  React.createElement("div", {className: "grid grid-cols-2 gap-2"},
+                    React.createElement("div", null,
+                      React.createElement("label", {className: "text-xs text-slate-300 block mb-1 font-medium"}, "Cidade:"),
+                      React.createElement("input", {type: "text", value: city, onChange: (e) => setCity(e.target.value), className: "w-full bg-[#0b192c] border border-slate-700 rounded-lg px-2 py-2 text-xs text-white focus:outline-none focus:border-slate-400"})
+                    ),
+                    React.createElement("div", null,
+                      React.createElement("label", {className: "text-xs text-slate-300 block mb-1 font-medium"}, "UF:"),
+                      React.createElement("input", {type: "text", value: stateUF, onChange: (e) => setStateUF(e.target.value), className: "w-full bg-[#0b192c] border border-slate-700 rounded-lg px-2 py-2 text-xs text-white focus:outline-none focus:border-slate-400"})
+                    )
+                  ),
+                  React.createElement("div", {className: "grid grid-cols-2 gap-2"},
+                    React.createElement("div", null,
+                      React.createElement("label", {className: "text-xs text-slate-300 block mb-1 font-medium"}, "Data Início"),
+                      React.createElement("input", {type: "date", value: dataInicio, onChange: (e) => setDataInicio(e.target.value), className: "w-full bg-[#0b192c] border border-slate-700 rounded-lg px-2 py-2 text-xs text-white focus:outline-none focus:border-slate-400"})
+                    ),
+                    React.createElement("div", null,
+                      React.createElement("label", {className: "text-xs text-slate-300 block mb-1 font-medium"}, "Data Término"),
+                      React.createElement("input", {type: "date", value: dataFim, onChange: (e) => setDataFim(e.target.value), className: "w-full bg-[#0b192c] border border-slate-700 rounded-lg px-2 py-2 text-xs text-white focus:outline-none focus:border-slate-400"})
+                    )
+                  ),
+                  React.createElement("div", {className: "grid grid-cols-2 gap-2"},
+                    React.createElement("div", null,
+                      React.createElement("label", {className: "text-xs text-slate-300 block mb-1 font-medium"}, "Peso Inicial (kg)"),
+                      React.createElement("input", {type: "number", value: pesoInicial, onChange: (e) => setPesoInicial(Number(e.target.value)), className: "w-full bg-[#0b192c] border border-slate-700 rounded-lg px-2 py-2 text-xs text-white focus:outline-none focus:border-slate-400"})
+                    ),
+                    React.createElement("div", null,
+                      React.createElement("label", {className: "text-xs text-slate-300 block mb-1 font-medium"}, "Ajuste GMD (%)"),
+                      React.createElement("input", {type: "number", value: ajusteGmdPct, onChange: (e) => setAjusteGmdPct(Number(e.target.value)), className: "w-full bg-[#0b192c] border border-slate-700 rounded-lg px-2 py-2 text-xs text-white focus:outline-none focus:border-slate-400"})
+                    )
+                  )
+                ),
+
+                savedPlans.length > 0 && React.createElement("div", {className: "space-y-2 bg-[#0b192c]/50 p-3 rounded-xl border border-slate-700"},
+                  React.createElement("label", {className: "text-xs font-bold text-slate-200 block"}, "Carregar Salvo"),
+                  React.createElement("select", {onChange: (e) => { const p = savedPlans.find(x => x.id == e.target.value); if(p) loadPlan(p); }, className: "w-full bg-[#0b192c] border border-slate-700 text-xs text-white rounded p-1.5"},
+                    React.createElement("option", {value: ""}, "Selecione..."),
+                    savedPlans.map(p => React.createElement("option", {key: p.id, value: p.id}, p.name))
+                  )
+                ),
+
+                React.createElement("hr", {className: "border-slate-700"}),
+
+                React.createElement("div", {className: "space-y-3"},
+                  React.createElement("h2", {className: "text-sm font-bold uppercase tracking-wider text-slate-200"}, "Preços Suplementos (R$/SC 30kg)"),
+                  React.createElement("div", {className: "grid grid-cols-2 gap-2"},
+                    Object.keys(precos).map((prod) =>
+                      React.createElement("div", {key: prod},
+                        React.createElement("label", {className: "text-[11px] text-slate-300 block truncate"}, prod),
+                        React.createElement("input", {type: "number", value: precos[prod], onChange: (e) => setPrecos({...precos, [prod]: Number(e.target.value)}), className: "w-full bg-[#0b192c] border border-slate-700 rounded-lg px-2 py-1.5 text-xs text-white focus:outline-none focus:border-slate-400"})
+                      )
+                    )
+                  )
+                ),
+
+                React.createElement("hr", {className: "border-slate-700"}),
+
+                React.createElement("div", {className: "space-y-3"},
+                  React.createElement("h2", {className: "text-sm font-bold uppercase tracking-wider text-slate-200"}, "Custos & Mercado"),
+                  React.createElement("div", {className: "grid grid-cols-2 gap-2"},
+                    React.createElement("div", null,
+                      React.createElement("label", {className: "text-[11px] text-slate-300 block"}, "Compra (@)"),
+                      React.createElement("input", {type: "number", value: precoCompraArroba, onChange: (e) => setPrecoCompraArroba(Number(e.target.value)), className: "w-full bg-[#0b192c] border border-slate-700 rounded-lg px-2 py-1.5 text-xs text-white focus:outline-none focus:border-slate-400"})
+                    ),
+                    React.createElement("div", null,
+                      React.createElement("label", {className: "text-[11px] text-slate-300 block"}, "Venda (@)"),
+                      React.createElement("input", {type: "number", value: precoVendaArroba, onChange: (e) => setPrecoVendaArroba(Number(e.target.value)), className: "w-full bg-[#0b192c] border border-slate-700 rounded-lg px-2 py-1.5 text-xs text-white focus:outline-none focus:border-slate-400"})
+                    ),
+                    React.createElement("div", null,
+                      React.createElement("label", {className: "text-[11px] text-slate-300 block"}, "RC Inicial (%)"),
+                      React.createElement("input", {type: "number", value: rcInicialPct, onChange: (e) => setRcInicialPct(Number(e.target.value)), className: "w-full bg-[#0b192c] border border-slate-700 rounded-lg px-2 py-1.5 text-xs text-white focus:outline-none focus:border-slate-400"})
+                    ),
+                    React.createElement("div", null,
+                      React.createElement("label", {className: "text-[11px] text-slate-300 block"}, "RC Final (%)"),
+                      React.createElement("input", {type: "number", value: rcFinalPct, onChange: (e) => setRcFinalPct(Number(e.target.value)), className: "w-full bg-[#0b192c] border border-slate-700 rounded-lg px-2 py-1.5 text-xs text-white focus:outline-none focus:border-slate-400"})
+                    ),
+                    React.createElement("div", null,
+                      React.createElement("label", {className: "text-[11px] text-slate-300 block"}, "Operac. (R$/dia)"),
+                      React.createElement("input", {type: "number", step: "0.05", value: custoOperacionalDia, onChange: (e) => setCustoOperacionalDia(Number(e.target.value)), className: "w-full bg-[#0b192c] border border-slate-700 rounded-lg px-2 py-1.5 text-xs text-white focus:outline-none focus:border-slate-400"})
+                    ),
+                    React.createElement("div", null,
+                      React.createElement("label", {className: "text-[11px] text-slate-300 block"}, "Sanidade (R$/mês)"),
+                      React.createElement("input", {type: "number", value: sanidadeMes, onChange: (e) => setSanidadeMes(Number(e.target.value)), className: "w-full bg-[#0b192c] border border-slate-700 rounded-lg px-2 py-1.5 text-xs text-white focus:outline-none focus:border-slate-400"})
+                    ),
+                    React.createElement("div", {className: "col-span-2"},
+                      React.createElement("label", {className: "text-[11px] text-slate-300 block"}, "Arrendamento (R$/cab/mês)"),
+                      React.createElement("input", {type: "number", value: arrendamentoMes, onChange: (e) => setArrendamentoMes(Number(e.target.value)), className: "w-full bg-[#0b192c] border border-slate-700 rounded-lg px-2 py-1.5 text-xs text-white focus:outline-none focus:border-slate-400"})
+                    )
+                  )
+                )
+              ),
+
+              React.createElement("main", {className: "flex-1 p-4 lg:p-8 space-y-6 overflow-x-auto bg-[#07101a]"},
+                React.createElement("div", {className: "bg-[#1e3e62] border border-slate-700 rounded-2xl p-6 shadow-xl flex flex-col md:flex-row justify-between items-start md:items-center gap-4"},
+                  React.createElement("div", {className: "flex items-center gap-4"},
+                    React.createElement("div", {className: "bg-white p-2 rounded-xl shadow w-14 h-14 flex items-center justify-center"},
+                      React.createElement("svg", {viewBox: "0 0 500 500", className: "w-10 h-10"},
+                        React.createElement("path", {fill: "#0b192c", d: "M125 70 C 150 120, 200 140, 250 140 C 300 140, 350 120, 375 70 C 400 90, 430 140, 410 190 C 390 240, 350 250, 330 290 C 310 330, 290 380, 250 430 C 210 380, 190 330, 170 290 C 150 250, 110 240, 90 190 C 70 140, 100 90, 125 70 Z"}),
+                        React.createElement("circle", {cx: "250", cy: "240", r: "70", fill: "#ff4c4c"}),
+                        React.createElement("path", {fill: "#fff", d: "M235 200 h30 v50 h-30 z"})
+                      )
+                    ),
+                    React.createElement("div", null,
+                      React.createElement("span", {className: "text-slate-300 text-xs font-bold uppercase tracking-widest"}, planName),
+                      React.createElement("h2", {className: "text-2xl font-black text-white mt-0.5"}, "Cliente: ", client),
+                      React.createElement("p", {className: "text-xs text-slate-300"}, "Propriedade: ", React.createElement("strong", {className: "text-white"}, property), " | Cidade (UF): ", React.createElement("strong", {className: "text-white"}, city, " (", stateUF, ")")),
+                      React.createElement("p", {className: "text-xs text-slate-300 font-semibold mt-1"}, "Período: ", new Date(dataInicio + "T00:00:00").toLocaleDateString('pt-BR'), " até ", new Date(dataFim + "T00:00:00").toLocaleDateString('pt-BR'))
+                    )
+                  ),
+                  React.createElement("div", {className: "flex gap-4 bg-[#0b192c] px-4 py-3 rounded-xl border border-slate-700"},
+                    React.createElement("div", null,
+                      React.createElement("span", {className: "text-[10px] text-slate-400 block uppercase font-medium"}, "Peso Inicial"),
+                      React.createElement("span", {className: "text-lg font-bold text-white"}, pesoInicial, " kg")
+                    ),
+                    React.createElement("div", {className: "border-r border-slate-700"}),
+                    React.createElement("div", {className: "pl-2"},
+                      React.createElement("span", {className: "text-[10px] text-slate-400 block uppercase font-medium"}, "Peso Final"),
+                      React.createElement("span", {className: "text-lg font-bold text-emerald-400"}, calculos.pesoFinalTotal.toFixed(1), " kg")
+                    ),
+                    React.createElement("div", {className: "border-r border-slate-700"}),
+                    React.createElement("div", {className: "pl-2"},
+                      React.createElement("span", {className: "text-[10px] text-slate-400 block uppercase font-medium"}, "Ganho Total"),
+                      React.createElement("span", {className: "text-lg font-bold text-emerald-400"}, "+", calculos.ganhoTotalTotal.toFixed(1), " kg")
+                    )
+                  )
+                ),
+
+                React.createElement("div", {className: "grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4"},
+                  React.createElement("div", {className: "bg-[#1e3e62] border border-slate-700 p-5 rounded-2xl shadow-lg"},
+                    React.createElement("span", {className: "text-xs text-slate-300 font-medium"}, "Despesa Alimentar Total"),
+                    React.createElement("h3", {className: "text-2xl font-extrabold text-white mt-1"}, "R$ ", calculos.totalDespesaAlimentar.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })),
+                    React.createElement("span", {className: "text-xs text-slate-400 mt-2 block"}, "Custo: R$ ", calculos.custoAlimentarArroba.toFixed(2), "/@")
+                  ),
+                  React.createElement("div", {className: "bg-[#1e3e62] border border-slate-700 p-5 rounded-2xl shadow-lg"},
+                    React.createElement("span", {className: "text-xs text-slate-300 font-medium"}, "Custo Total por Cabeça"),
+                    React.createElement("h3", {className: "text-2xl font-extrabold text-amber-400 mt-1"}, "R$ ", calculos.despesaTotalCab.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })),
+                    React.createElement("span", {className: "text-xs text-slate-400 mt-2 block"}, "Custo Total: R$ ", calculos.custoTotalArroba.toFixed(2), "/@")
+                  ),
+                  React.createElement("div", {className: "bg-[#1e3e62] border border-slate-700 p-5 rounded-2xl shadow-lg"},
+                    React.createElement("span", {className: "text-xs text-slate-300 font-medium"}, "Receita de Venda Total"),
+                    React.createElement("h3", {className: "text-2xl font-extrabold text-emerald-400 mt-1"}, "R$ ", calculos.precoVendaCab.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })),
+                    React.createElement("span", {className: "text-xs text-slate-400 mt-2 block"}, "Preço Venda: R$ ", precoVendaArroba, "/@")
+                  ),
+                  React.createElement("div", {className: "bg-[#1e3e62] border border-emerald-500/40 p-5 rounded-2xl shadow-lg bg-gradient-to-br from-[#1e3e62] to-[#0a2618]"},
+                    React.createElement("span", {className: "text-xs text-emerald-400 font-bold uppercase tracking-wider"}, "Lucro Líquido / Cab."),
+                    React.createElement("h3", {className: "text-2xl font-black text-emerald-400 mt-1"}, "R$ ", calculos.lucroCab.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })),
+                    React.createElement("span", {className: "text-xs text-slate-200 mt-2 block font-medium"}, "Lucratividade: ", (calculos.lucratividade * 100).toFixed(1), "%")
+                  )
+                ),
+
+                React.createElement("div", {className: "bg-[#1e3e62] border border-slate-700 rounded-2xl shadow-xl overflow-hidden"},
+                  React.createElement("div", {className: "p-4 bg-[#0b192c] border-b border-slate-700 flex justify-between items-center"},
+                    React.createElement("h3", {className: "font-bold text-white text-base"}, "Matriz de Planejamento (", planRows.length, " Meses / ", calculos.totalDias, " dias totais)"),
+                    React.createElement("button", {onClick: addRow, className: "no-print bg-[#ff4c4c] text-white px-3 py-1.5 rounded-lg text-xs font-bold cursor-pointer"}, "+ Adicionar Mês")
+                  ),
+                  React.createElement("div", {className: "overflow-x-auto"},
+                    React.createElement("table", {className: "w-full text-left border-collapse text-xs"},
+                      React.createElement("thead", null,
+                        React.createElement("tr", {className: "bg-[#0b192c] text-slate-300 uppercase font-semibold border-b border-slate-700"},
+                          React.createElement("th", {className: "p-3"}, "Mês"),
+                          React.createElement("th", {className: "p-3"}, "Dias"),
+                          React.createElement("th", {className: "p-3"}, "Produto Suplementar"),
+                          React.createElement("th", {className: "p-3 text-right"}, "GMD (g)"),
+                          React.createElement("th", {className: "p-3 text-right"}, "Ganho (kg)"),
+                          React.createElement("th", {className: "p-3 text-right"}, "P. Inicial"),
+                          React.createElement("th", {className: "p-3 text-right"}, "P. Final"),
+                          React.createElement("th", {className: "p-3 text-right"}, "Consumo/dia"),
+                          React.createElement("th", {className: "p-3 text-right"}, "Diária"),
+                          React.createElement("th", {className: "p-3 text-right"}, "Desp. Mensal"),
+                          React.createElement("th", {className: "p-3 text-right"}, "Custo/@"),
+                          React.createElement("th", {className: "no-print p-3 text-center"}, "Ações")
+                        )
+                      ),
+                      React.createElement("tbody", {className: "divide-y divide-slate-700"},
+                        calculos.monthlyResults.map((row) =>
+                          React.createElement("tr", {key: row.id, className: "hover:bg-[#0b192c]/40"},
+                            React.createElement("td", {className: "p-3 font-bold text-white uppercase"},
+                              React.createElement("select", {value: row.mes, onChange: (e) => updateRowField(row.id, 'mes', e.target.value), className: "bg-[#0b192c] border border-slate-700 text-white font-bold rounded px-2 py-1"},
+                                ALL_MONTHS.map(m => React.createElement("option", {key: m, value: m}, m))
+                              )
+                            ),
+                            React.createElement("td", {className: "p-3"},
+                              React.createElement("input", {type: "number", value: row.dias, onChange: (e) => updateRowField(row.id, 'diasCustom', e.target.value), className: "w-16 bg-[#0b192c] border border-slate-700 text-emerald-400 font-bold rounded px-2 py-1 text-center"})
+                            ),
+                            React.createElement("td", {className: "p-3"},
+                              React.createElement("select", {value: row.produto, onChange: (e) => updateRowField(row.id, 'produto', e.target.value), className: "bg-[#0b192c] border border-slate-700 text-emerald-400 font-medium rounded px-2 py-1"},
+                                Object.keys(GMD_DB).map(prod => React.createElement("option", {key: prod, value: prod}, prod, " (R$ ", precos[prod], "/sc)"))
+                              )
+                            ),
+                            React.createElement("td", {className: "p-3 text-right text-slate-200"}, row.gmd.toFixed(0)),
+                            React.createElement("td", {className: "p-3 text-right text-emerald-400 font-semibold"}, "+", row.ganhoTotal.toFixed(1)),
+                            React.createElement("td", {className: "p-3 text-right text-slate-400"}, row.pesoInicial.toFixed(1)),
+                            React.createElement("td", {className: "p-3 text-right text-white font-medium"}, row.pesoFinal.toFixed(1)),
+                            React.createElement("td", {className: "p-3 text-right text-slate-300"}, (row.consumoDia * 1000).toFixed(0), " g"),
+                            React.createElement("td", {className: "p-3 text-right text-slate-300"}, "R$ ", row.diaria.toFixed(2)),
+                            React.createElement("td", {className: "p-3 text-right text-white font-medium"}, "R$ ", row.despesaMensal.toFixed(2)),
+                            React.createElement("td", {className: "p-3 text-right text-amber-400 font-medium"}, "R$ ", row.custoArrobaAlimentar.toFixed(2)),
+                            React.createElement("td", {className: "no-print p-3 text-center"},
+                              React.createElement("button", {onClick: () => removeRow(row.id), className: "bg-rose-500/20 text-rose-400 px-2 py-1 rounded text-xs cursor-pointer"}, "✕")
+                            )
+                          )
+                        )
+                      )
+                    )
+                  )
+                ),
+
+                React.createElement("div", {className: "bg-[#1e3e62] border border-slate-700 rounded-2xl p-6 shadow-xl"},
+                  React.createElement("h3", {className: "font-bold text-white text-base mb-4"}, "Análise de Sensibilidade: Oscilação do Preço da Arroba x Lucratividade"),
+                  React.createElement("div", {className: "grid grid-cols-2 sm:grid-cols-4 md:grid-cols-7 gap-3"},
+                    calculos.sensibilidade.map((item, idx) =>
+                      React.createElement("div", {key: idx, className: `p-3 rounded-xl border ${item.preco === precoVendaArroba ? 'bg-emerald-500/20 border-emerald-500' : 'bg-[#0b192c] border-slate-700'} text-center`},
+                        React.createElement("span", {className: "text-[11px] text-slate-400 block"}, "R$ ", item.preco, "/@"),
+                        React.createElement("span", {className: `text-sm font-black block mt-1 ${item.lucro >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}, "R$ ", item.lucro.toFixed(0)),
+                        React.createElement("span", {className: "text-[10px] text-slate-300 block mt-0.5"}, item.lucratividade.toFixed(1), "%")
+                      )
+                    )
+                  )
+                ),
+
+                React.createElement("div", {className: "print-footer"},
+                  React.createElement("span", null, "BIPEC Gestão de Dados — Relatório Técnico Comercial | Cliente: ", client),
+                  React.createElement("span", null, "Gerado em: ", new Date().toLocaleDateString('pt-BR'), " | Pág. 1/1")
+                )
+              )
+            )
+          )
+        );
+      }
+
+      ReactDOM.createRoot(document.getElementById('root')).render(React.createElement(App));
+    </script>
+</body>
+</html>
